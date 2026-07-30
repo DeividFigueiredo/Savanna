@@ -1,0 +1,6 @@
+{"scripts" : {
+    "api-dev":"cd apps/api && npm run start:dev",
+    "api-build":"cd apps/api && npm run build"
+
+}
+}
