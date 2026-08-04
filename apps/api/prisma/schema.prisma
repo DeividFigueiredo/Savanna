@@ -11,3 +11,148 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+enum UserRole {
+  OWNER
+  ADMIN
+  MANAGER
+  SALES
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  DISQUALIFIED
+  CONVERTED
+}
+
+enum DealStatus {
+  OPEN
+  WON
+  LOST
+}
+
+model Company {
+  id        String   @id @default(uuid())
+  name      String
+  document  String?  @unique
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users     User[]
+  pipelines Pipeline[]
+  leads     Lead[]
+  deals     Deal[]
+
+  @@map("companies")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  companyId    String
+  name         String
+  email        String
+  passwordHash String
+  role         UserRole @default(SALES)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  company    Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  ownedLeads Lead[]  @relation("LeadOwner")
+  ownedDeals Deal[]  @relation("DealOwner")
+
+  @@unique([companyId, email])
+  @@index([companyId])
+  @@map("users")
+}
+
+model Pipeline {
+  id        String   @id @default(uuid())
+  companyId String
+  name      String
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  stages  PipelineStage[]
+  deals   Deal[]
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@map("pipelines")
+}
+
+model PipelineStage {
+  id         String   @id @default(uuid())
+  pipelineId String
+  name       String
+  position   Int
+  isWon      Boolean  @default(false)
+  isLost     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  pipeline Pipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  deals    Deal[]
+
+  @@unique([pipelineId, position])
+  @@index([pipelineId])
+  @@map("pipeline_stages")
+}
+
+model Lead {
+  id        String     @id @default(uuid())
+  companyId String
+  ownerId   String?
+  name      String
+  email     String?
+  phone     String?
+  origin    String?
+  status    LeadStatus @default(NEW)
+  notes     String?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  owner   User?   @relation("LeadOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  deals   Deal[]
+
+  @@index([companyId])
+  @@index([companyId, status])
+  @@index([ownerId])
+  @@map("leads")
+}
+
+model Deal {
+  id         String     @id @default(uuid())
+  companyId  String
+  leadId     String
+  pipelineId String
+  stageId    String
+  ownerId    String?
+  title      String
+  value      Decimal    @default(0) @db.Decimal(14, 2)
+  status     DealStatus @default(OPEN)
+  expectedAt DateTime?
+  closedAt   DateTime?
+  lostReason String?
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  company  Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  lead     Lead          @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  pipeline Pipeline      @relation(fields: [pipelineId], references: [id])
+  stage    PipelineStage @relation(fields: [stageId], references: [id])
+  owner    User?         @relation("DealOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+
+  @@index([companyId])
+  @@index([companyId, status])
+  @@index([pipelineId, stageId])
+  @@index([leadId])
+  @@index([ownerId])
+  @@map("deals")
+}
